@@ -64,7 +64,7 @@ def low_train(low_policy, replay_buffer, episode_timesteps, batch_size, discount
     tmp_memory = utils.Normal_ReplayBuffer()
 
     # replay_memory에서 무작위추출하여 low_policy 학습에 필요한 값들을 받아옵니다.
-    x, _, g, y, _, n_g, u, _, d, r = replay_buffer.step_sample(batch_size)
+    x, env_g, g, y, env_n_g, n_g, u, r, d, l_r = replay_buffer.step_sample(batch_size)
     state = torch.FloatTensor(x)
     sub_goal = torch.FloatTensor(g)
     next_state = torch.FloatTensor(y)
@@ -252,9 +252,14 @@ if __name__ == "__main__":
             episode_timesteps = 0
             episode_num += 1
 
+
+        # obs 모양 맞춰주기
+        if len(obs) == 2:
+            obs = obs[0]
+
         # high_policy를 위한 인풋 생성
         # 주의 : robotics 환경에 최적화되어있으므로 다른 환경 적용시 obs['desired_goal'] 등을 제거할 것
-        high_input = np.concatenate((obs[0]['observation'], obs[0]['desired_goal']), 0)
+        high_input = np.concatenate((obs['observation'], obs['desired_goal']), 0)
 
         # low_policy를 위한 sub_goal을 생성해줍니다. 일정 스텝 이전에는 무작위, 일정스텝 후에는 노이즈 추가
         if total_timesteps < args.high_start_timesteps:
@@ -270,7 +275,7 @@ if __name__ == "__main__":
         while True:
 
             # low_policy 를 위한 인풋 생성
-            low_input = np.concatenate((obs[0]['observation'], sub_goal), 0)
+            low_input = np.concatenate((obs['observation'], sub_goal), 0)
 
             # action을 생성해줍니다. 일정 스텝 이전에는 무작위, 일정스텝 후에는 노이즈 추가
             if total_timesteps < args.low_start_timesteps:\
@@ -291,16 +296,16 @@ if __name__ == "__main__":
             done_bool = 0 if episode_timesteps + 1 == env._max_episode_steps else done
 
             # low reward 계산해주고 변수에 저장해줍니다.
-            low_reward = low_reward_cal(obs[0]['observation'], new_obs['observation'], sub_goal)
+            low_reward = low_reward_cal(obs['observation'], new_obs['observation'], sub_goal)
             episode_low_reward += low_reward
             episode_reward += reward
             c_step_reward += reward
 
             # goal transition model 을 통해 수정된 goal 생성
-            new_sub_goal = sub_goal_transition(obs[0]['observation'], new_obs['observation'], sub_goal)
+            new_sub_goal = sub_goal_transition(obs['observation'], new_obs['observation'], sub_goal)
 
             # replay_buffer에 추가
-            replay_buffer.step_add((obs[0]['observation'], obs[0]['desired_goal'], sub_goal, new_obs['observation'],
+            replay_buffer.step_add((obs['observation'], obs['desired_goal'], sub_goal, new_obs['observation'],
                                     new_obs['desired_goal'], new_sub_goal, action, float(reward), done_bool,
                                     float(low_reward)))
 
